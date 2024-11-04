@@ -95,8 +95,8 @@ pipeline {
                 // Step 1: Lint the Dockerfile using Hadolint
                 script {
                     // Run Hadolint Docker image and save output to a text file
-                    sh 'docker run --rm -i hadolint/hadolint < Dockerfile > hadolint_report.txt'
-                    archiveArtifacts artifacts: 'hadolint_report.txt', allowEmptyArchive: true
+                    sh 'docker run --rm -i hadolint/hadolint < Dockerfile > hadolint_report.html'
+                    archiveArtifacts artifacts: 'hadolint_report.html', allowEmptyArchive: true
                 }
             }
         }
