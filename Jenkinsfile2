@@ -92,7 +92,7 @@ pipeline {
         
         stage('Lint Dockerfile') {
             steps {
-                // Step 1: Lint the Dockerfile using Hadolint
+                // Step 1: Lint the Dockerfile using Hadolint ( -Dsonar.qualitygate.wait=true \ )
                 script {
                     // Run Hadolint Docker image and save output to a text file
                     sh 'docker run --rm -i hadolint/hadolint < Dockerfile > hadolint_report.html'
