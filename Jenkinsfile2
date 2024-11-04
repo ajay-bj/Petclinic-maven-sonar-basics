@@ -103,8 +103,9 @@ pipeline {
         stage('Docker Image Vulnerability Scanning') {
             steps {
                 script {
-                    sh 'trivy image --format table $IMAGE_TAG > trivy-report.txt'
-                    archiveArtifacts artifacts: 'trivy_test_report.txt', allowEmptyArchive: false
+                    sh 'trivy image --severity HIGH,CRITICAL --format table $IMAGE_TAG > trivy-report.txt'
+                    sh 'pandoc trivy-report.txt -o trivy-report.pdf'
+                    archiveArtifacts artifacts: 'trivy-report.pdf', allowEmptyArchive: false
                 }
             }
         }
