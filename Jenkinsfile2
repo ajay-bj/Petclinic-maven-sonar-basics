@@ -50,7 +50,19 @@ pipeline {
                 }
             }
         }
-        
+        stage("Build") {
+            steps {
+                sh "mvn clean install"
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "Building Docker image"
+                    
+                }
+            }
+        }
         stage('Lint Dockerfile') {
             steps {
                 // Step 1: Lint the Dockerfile using Hadolint
@@ -75,10 +87,6 @@ pipeline {
             }
         }
         
-        stage("Build") {
-            steps {
-                sh "mvn clean install"
-            }
-        }
+        
     }
 }
