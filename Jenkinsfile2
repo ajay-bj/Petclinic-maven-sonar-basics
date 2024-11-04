@@ -105,8 +105,8 @@ pipeline {
                 script {
                     // Run Trivy to scan the 'hello-world' Docker image for vulnerabilities
                     sh '''
-                    trivy image --severity HIGH,CRITICAL --format table 905418153772.dkr.ecr.us-east-1.amazonaws.com/devsecops/petclinic:16 > trivy_test_report.txt \
-                    docker run --rm -v $(pwd):/root/.cache/ aquasec/trivy image --severity HIGH,CRITICAL --format table 905418153772.dkr.ecr.us-east-1.amazonaws.com/devsecops/petclinic:16 > trivy_test_report.txt
+                    trivy image --severity HIGH,CRITICAL --format table 905418153772.dkr.ecr.us-east-1.amazonaws.com/devsecops/petclinic:16 > trivy_test_report.txt 
+                    
                     '''
                     
                     // Archive the generated text file for reviewing the test report
