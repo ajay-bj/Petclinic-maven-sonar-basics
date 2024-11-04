@@ -20,7 +20,7 @@ pipeline {
     }
     
     stages {
-        stage("Test Cases") {
+        stage(" Maven Test ") {
             steps {
                 sh "mvn test"
             }
@@ -83,6 +83,34 @@ pipeline {
                     
                     // Archive the generated text file for reviewing the test report
                     archiveArtifacts artifacts: 'trivy_test_report.txt', allowEmptyArchive: false
+                }
+            }
+        }
+        stages {
+        stage('ZAP Scan') {
+            steps {
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    script {
+                        // Define the script based on selected parameter
+                        def zapScript
+                        def reportFile
+                        if (params.SCAN_TYPE == 'Baseline') {
+                            zapScript = 'zap-baseline.py'
+                            reportFile = 'zap_baseline_report.html'
+                        } else if (params.SCAN_TYPE == 'API') {
+                            zapScript = 'zap-api-scan.py'
+                            reportFile = 'zap_api_report.html'
+                        } else if (params.SCAN_TYPE == 'FULL') {
+                            zapScript = 'zap-full-scan.py'
+                            reportFile = 'zap_full_report.html'
+                        }
+
+                        // Run the respective ZAP script using Docker
+                        def status = sh(script: '''
+                        docker run -v $PWD:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+                        ''' + zapScript + ''' -t https://www.example.com > ''' + reportFile, returnStatus: true)
+                        archiveArtifacts artifacts: '*.html', allowEmptyArchive: true
+                    }
                 }
             }
         }
