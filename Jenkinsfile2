@@ -36,7 +36,7 @@ pipeline {
                 withSonarQubeEnv('sonar-scanner') {
                     sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=devsecops \
                     -Dsonar.java.binaries=. \
-                    -Dsonar.projectKey=devsecops
+                    -Dsonar.projectKey=devsecops \
                     -Dsonar.qualitygate.wait=true \
                     -Dsonar.coverage.exclusions=**/test/** \
                     -Dsonar.coverage.minimumCoverage=80 \
