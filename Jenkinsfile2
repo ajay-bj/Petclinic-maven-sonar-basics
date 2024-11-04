@@ -106,7 +106,7 @@ pipeline {
                     // Run Trivy to scan the 'hello-world' Docker image for vulnerabilities
                     sh '''
                     docker pull hello-world
-                    docker run --rm -v $(pwd):/root/.cache/ aquasec/trivy image --severity HIGH,CRITICAL --format table hello-world > trivy_test_report.txt
+                    docker run --rm -v $(pwd):/root/.cache/ aquasec/trivy image --severity HIGH,CRITICAL --format table $IMAGE_TAG > trivy_test_report.txt
                     '''
                     
                     // Archive the generated text file for reviewing the test report
