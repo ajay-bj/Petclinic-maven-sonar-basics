@@ -38,7 +38,7 @@ pipeline {
                     -Dsonar.java.binaries=. \
                     -Dsonar.projectKey=devsecops \
                     -Dsonar.qualitygate.wait=true \
-                    -Dsonar.coverage.exclusions=**/test/** \
+                   // -Dsonar.coverage.exclusions=**/test/** \
                     -Dsonar.coverage.minimumCoverage=80 \
                     -Dsonar.security.hotspots=true \
                     -Dsonar.issue.severity=HIGH
