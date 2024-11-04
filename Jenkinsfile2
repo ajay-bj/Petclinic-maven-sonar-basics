@@ -9,6 +9,10 @@ pipeline {
     
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
+        AWS_REGION = 'us-east-1'                        
+        ECR_REGISTRY = '905418153772.dkr.ecr.us-east-1.amazonaws.com'
+        ECR_REPOSITORY = 'devsecops/petclinic'           
+        IMAGE_TAG = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${env.BUILD_NUMBER}" 
     }
     parameters {
         // Active Choice parameter with 3 scan options
@@ -59,10 +63,33 @@ pipeline {
             steps {
                 script {
                     echo "Building Docker image"
+                    sh "docker build -t $IMAGE_TAG ."
                     
                 }
             }
         }
+        stage('Login to ECR') {
+            steps {
+                withCredentials([aws(credentialsId: 'aws-cred', region: AWS_REGION)]) {
+                    script {
+                        echo "Logging in to Amazon ECR"
+                        sh """
+                            aws ecr get-login-password --region $AWS_REGION | \
+                            docker login --username AWS --password-stdin $ECR_REGISTRY
+                        """
+                    }
+                }
+            }
+        }
+        stage('Push Docker Image to ECR') {
+            steps {
+                script {
+                    echo "Pushing Docker image to ECR"
+                    sh "docker push $IMAGE_TAG"
+                }
+            }
+        }
+        
         stage('Lint Dockerfile') {
             steps {
                 // Step 1: Lint the Dockerfile using Hadolint
