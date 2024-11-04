@@ -10,6 +10,14 @@ pipeline {
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
     }
+    parameters {
+        // Active Choice parameter with 3 scan options
+        choice(
+            name: 'SCAN_TYPE',
+            choices: ['Baseline', 'API', 'FULL'],
+            description: 'Select the type of ZAP scan you want to run.'
+        )
+    }
     
     stages {
         stage("Test Cases") {
