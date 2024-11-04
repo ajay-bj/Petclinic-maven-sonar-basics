@@ -86,7 +86,6 @@ pipeline {
                 }
             }
         }
-        stages {
         stage('ZAP Scan') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
@@ -109,6 +108,8 @@ pipeline {
                         def status = sh(script: '''
                         docker run -v $PWD:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
                         ''' + zapScript + ''' -t https://www.example.com > ''' + reportFile, returnStatus: true)
+                        
+                       
                         archiveArtifacts artifacts: '*.html', allowEmptyArchive: true
                     }
                 }
