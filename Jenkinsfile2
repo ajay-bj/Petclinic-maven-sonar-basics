@@ -104,7 +104,7 @@ pipeline {
             steps {
                 script {
                     sh 'trivy image --severity HIGH,CRITICAL --format table $IMAGE_TAG > trivy-report.txt'
-                    sh 'pandoc trivy-report.txt -o trivy-report.pdf'
+                    sh 'libreoffice --headless --convert-to pdf trivy-report.txt --outdir .'
                     archiveArtifacts artifacts: 'trivy-report.pdf', allowEmptyArchive: false
                 }
             }
