@@ -103,13 +103,7 @@ pipeline {
         stage('Docker Image Vulnerability Scanning') {
             steps {
                 script {
-                    // Run Trivy to scan the 'hello-world' Docker image for vulnerabilities
-                    sh '''
-                    trivy image --severity HIGH,CRITICAL --format table 905418153772.dkr.ecr.us-east-1.amazonaws.com/devsecops/petclinic:16 > trivy_test_report.txt 
-                    
-                    '''
-                    
-                    // Archive the generated text file for reviewing the test report
+                    sh 'trivy image --format table $IMAGE_TAG > trivy-report.txt'
                     archiveArtifacts artifacts: 'trivy_test_report.txt', allowEmptyArchive: false
                 }
             }
