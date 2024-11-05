@@ -1,12 +1,11 @@
-
 pipeline {
     agent any 
-    
+
     tools {
         jdk 'jdk17' 
         maven 'maven3'
     }
-    
+
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
         AWS_REGION = 'us-east-1'                        
@@ -14,17 +13,17 @@ pipeline {
         ECR_REPOSITORY = 'devsecops/petclinic'           
         IMAGE_TAG = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${env.BUILD_NUMBER}" 
     }
+
     parameters {
-        // Active Choice parameter with 3 scan options
         choice(
             name: 'SCAN_TYPE',
             choices: ['Baseline', 'API', 'FULL'],
             description: 'Select the type of ZAP scan you want to run.'
         )
     }
-    
+
     stages {
-        stage(" Maven Test ") {
+        stage("Maven Test") {
             steps {
                 sh "mvn test"
             }
@@ -44,6 +43,7 @@ pipeline {
                 }
             }
         }
+
         stage('Owasp Dependency Check') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -54,20 +54,22 @@ pipeline {
                 }
             }
         }
+
         stage("Maven Build") {
             steps {
                 sh "mvn clean install"
             }
         }
+
         stage('Build Docker Image') {
             steps {
                 script {
                     echo "Building Docker image"
                     sh "docker build -t $IMAGE_TAG ."
-                    
                 }
             }
         }
+
         stage('Login to ECR') {
             steps {
                 withCredentials([aws(credentialsId: 'aws-cred', region: AWS_REGION)]) {
@@ -81,6 +83,7 @@ pipeline {
                 }
             }
         }
+
         stage('Push Docker Image to ECR') {
             steps {
                 script {
@@ -92,14 +95,13 @@ pipeline {
         
         stage('Lint Dockerfile') {
             steps {
-                // Step 1: Lint the Dockerfile using Hadolint ( -Dsonar.qualitygate.wait=true \ )
                 script {
-                    // Run Hadolint Docker image and save output to a text file
                     sh 'docker run --rm -i hadolint/hadolint < Dockerfile > hadolint_report.html'
                     archiveArtifacts artifacts: 'hadolint_report.html', allowEmptyArchive: true
                 }
             }
         }
+
         stage('Docker Image Vulnerability Scanning') {
             steps {
                 script {
@@ -109,11 +111,11 @@ pipeline {
                 }
             }
         }
+
         stage('ZAP Scan') {
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     script {
-                        // Define the script based on selected parameter
                         def zapScript
                         def reportFile
                         if (params.SCAN_TYPE == 'Baseline') {
@@ -127,18 +129,60 @@ pipeline {
                             reportFile = 'zap_full_report.html'
                         }
 
-                        // Run the respective ZAP script using Docker
                         def status = sh(script: '''
                         docker run -v $PWD:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
                         ''' + zapScript + ''' -t https://www.example.com > ''' + reportFile, returnStatus: true)
-                        
-                       
+
                         archiveArtifacts artifacts: '*.html', allowEmptyArchive: true
                     }
                 }
             }
         }
-        
-        
     }
+
+    post {
+        always {
+            emailext (
+                subject: "Pipeline Status: Build #${BUILD_NUMBER}",
+                body: '''<html>
+                            <body>
+                                <p>Build Status: ${BUILD_STATUS}</p>
+                                <p>Build Number: ${BUILD_NUMBER}</p>
+                                <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
+                            </body>
+                        </html>''',
+                to: 'ajaybj969@gmail.com',
+                from: 'ajaybj969@gmail.com',
+                replyTo: 'ajaybj969@gmail.com',
+                mimeType: 'text/html'
+            )
+        }
+
+        success {
+            slackNotify("SUCCESS")
+        }
+
+        failure {
+            slackNotify("FAILURE")
+        }
+
+        unstable {
+            slackNotify("UNSTABLE")
+        }
+    }
+}
+
+// Function to send Slack notifications
+def slackNotify(String status) {
+    def triggerAuthor = currentBuild.changeSets.collectMany { changeSet ->
+        changeSet.items.collect { it.author.fullName }
+    }.join(', ') ?: "Unknown"
+
+    slackSend (
+        color: (status == "SUCCESS") ? "good" : ((status == "FAILURE") ? "danger" : "warning"),
+        message: "*Build Status:* ${status}\n" +
+                 "*Build Number:* ${env.BUILD_NUMBER}\n" +
+                 "*Build Link:* <${env.BUILD_URL}|Click Here>\n" +
+                 "*Triggered By:* ${triggerAuthor}"
+    )
 }
