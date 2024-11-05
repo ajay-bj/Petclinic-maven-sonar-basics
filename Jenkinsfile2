@@ -96,8 +96,7 @@ pipeline {
         stage('Lint Dockerfile') {
             steps {
                 script {
-                    sh 'chmod +r Dockerfile'
-                    sh 'docker run --rm  -v $PWD:/data hadolint/hadolint /data/Dockerfile > hadolint_report.txt'
+                    sh 'cat Dockerfile | docker run --rm -i hadolint/hadolint > hadolint_report.txt'
                     archiveArtifacts artifacts: 'hadolint_report.txt', allowEmptyArchive: true
                 }
             }
