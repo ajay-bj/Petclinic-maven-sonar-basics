@@ -32,7 +32,7 @@ pipeline {
         stage("Sonarqube Analysis") {
             steps {
                 withSonarQubeEnv('sonar-scanner') {
-                    sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=devsecops \
+                    sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=devsec \
                     -Dsonar.java.binaries=. \
                     -Dsonar.projectKey=devsecops \
                     -Dsonar.coverage.exclusions=**/test/** \
