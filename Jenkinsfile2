@@ -154,8 +154,9 @@ pipeline {
                 to: 'ajaybj969@gmail.com',
                 from: 'ajaybj969@gmail.com',
                 replyTo: 'ajaybj969@gmail.com',
-                mimeType: 'text/html'
-                attachmentsPattern: '**/trivy-report.pdf, **/hadolint_report.html, **/zap_baseline_report.html')
+                mimeType: 'text/html',
+                attachmentsPattern: '**/trivy-report.pdf,**/hadolint_report.html,**/zap_baseline_report.html'
+            )
         }
 
         success {
