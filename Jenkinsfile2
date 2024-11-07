@@ -131,7 +131,7 @@ pipeline {
 
                         def status = sh(script: '''
                         docker run -v $PWD:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
-                        ''' + zapScript + ''' -t https://www.example.com > ''' + reportFile, returnStatus: true)
+                        ''' + zapScript + ''' -t http://pet.teachingaws.com > ''' + reportFile, returnStatus: true)
 
                         archiveArtifacts artifacts: '*.html', allowEmptyArchive: true
                     }
