@@ -105,7 +105,7 @@ pipeline {
         stage('Docker Image Vulnerability Scanning') {
             steps {
                 script {
-                    sh 'trivy image --severity HIGH,CRITICAL --format table $IMAGE_TAG > trivy-report.txt'
+                    sh 'trivy image --scanners vuln --severity HIGH,CRITICAL --format table $IMAGE_TAG > trivy-report.txt'
                     sh 'libreoffice --headless --convert-to pdf trivy-report.txt --outdir .'
                     archiveArtifacts artifacts: 'trivy-report.pdf', allowEmptyArchive: false
                 }
