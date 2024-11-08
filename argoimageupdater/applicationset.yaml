@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: test-applications
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - appName: app1
+            imageRepo: 905418153772.dkr.ecr.us-east-1.amazonaws.com/devsecops/petclinic
+            imageTag: "45"
+            path: petclinic-helm
+            targetRevision: main
+          
+  template:
+    metadata:
+      name: "{{appName}}"
+      annotations:
+        argocd-image-updater.argoproj.io/image-list: "{{appName}}-image={{imageRepo}}:~{{imageTag}}"
+        argocd-image-updater.argoproj.io/{{appName}}-image.tag: "~{{imageTag}}"
+        argocd-image-updater.argoproj.io/{{appName}}-image.update-strategy: newest-build
+        argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
+        argocd-image-updater.argoproj.io/git-branch: main
+    spec:
+      project: default
+      source:
+        repoURL: "https://github.com/ajay-bj/helm-for-argocd.git"
+        targetRevision: "main"
+        path: "{{path}}"
+        helm:
+          parameters:
+            - name: "image.repository"
+              value: "{{imageRepo}}"
+            - name: "image.tag"
+              value: "{{imageTag}}"
+            - name: "replicaCount"
+              value: "1"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "dev"
+      syncPolicy:
+        syncOptions:
+         - CreateNamespace=true
+        automated:
+          prune: true
+          selfHeal: true
