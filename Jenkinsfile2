@@ -12,16 +12,17 @@ pipeline {
                     - cat
                     tty: true
                     volumeMounts:
-                    - name: maven-cache
-                      mountPath: /root/.m2
+                    - name: shared-volume
+                      mountPath: /cache
                   - name: kaniko
                     image: gcr.io/kaniko-project/executor:debug
                     command:
                     - /busybox/cat
                     tty: true
-                    env:
-                    - name: AWS_REGION
-                      value: "us-east-1"  # Change to your region
+                    volumeMounts:
+                    - name: shared-volume
+                      mountPath: /cache
+                    
                   volumes:
                   - name: maven-cache
                     hostPath:
@@ -42,11 +43,27 @@ pipeline {
                 checkout scm
             }
         }
+        stage('Inspect Shared Volume') {
+            steps {
+                container('maven') {
+                    sh 'echo "Listing contents of shared volume:"'
+                    sh 'ls -l /shared'
+                }
+            }
+        }
 
         stage('Build with Maven') {
             steps {
                 container('maven') {
-                    sh 'mvn -B -Dmaven.repo.local=/root/.m2/repository clean install -DskipTests'
+                    sh 'mvn clean install'
+                }
+            }
+        }
+        stage('Inspect Shared Volume') {
+            steps {
+                container('maven') {
+                    sh 'echo "Listing contents of shared volume:"'
+                    sh 'ls -l /shared'
                 }
             }
         }
