@@ -1,189 +1,73 @@
 pipeline {
-    agent any 
-
-    tools {
-        jdk 'jdk17' 
-        maven 'maven3'
+    agent {
+        kubernetes {
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: maven
+                    image: maven:3.8.4-openjdk-17
+                    command:
+                    - cat
+                    tty: true
+                    volumeMounts:
+                    - name: maven-cache
+                      mountPath: /root/.m2
+                  - name: kaniko
+                    image: gcr.io/kaniko-project/executor:debug
+                    command:
+                    - /busybox/cat
+                    tty: true
+                    env:
+                    - name: AWS_DEFAULT_REGION
+                      value: "us-west-2"  # Change to your region
+                  volumes:
+                  - name: maven-cache
+                    hostPath:
+                        path: /home/jenkins/cache
+            '''
+        }
     }
 
     environment {
-        SCANNER_HOME = tool 'sonar-scanner'
-        AWS_REGION = 'us-east-1'                        
-        ECR_REGISTRY = '905418153772.dkr.ecr.us-east-1.amazonaws.com'
-        ECR_REPOSITORY = 'devsecops/petclinic'           
-        IMAGE_TAG = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${env.BUILD_NUMBER}" 
-    }
-
-    parameters {
-        choice(
-            name: 'SCAN_TYPE',
-            choices: ['Baseline', 'API', 'FULL'],
-            description: 'Select the type of ZAP scan you want to run.'
-        )
+        AWS_ECR_REPO = "123456789012.dkr.ecr.us-west-2.amazonaws.com/jenkins-java-app"
+        IMAGE_TAG = "1.0.0"
     }
 
     stages {
-        stage("Maven Test") {
+        stage('Checkout') {
             steps {
-                sh "mvn test"
+                checkout scm
             }
         }
-        
-        stage("Sonarqube Analysis") {
+
+        stage('Build with Maven') {
             steps {
-                withSonarQubeEnv('sonar-scanner') {
-                    sh '''$SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=devsecop \
-                    -Dsonar.java.binaries=. \
-                    -Dsonar.projectKey=devsecop \
-                    -Dsonar.coverage.exclusions=**/test/** \
-                    -Dsonar.coverage.minimumCoverage=80 \
-                    -Dsonar.security.hotspots=true \
-                    -Dsonar.issue.severity=HIGH
-                    '''
+                container('maven') {
+                    sh 'mvn -B -Dmaven.repo.local=/root/.m2/repository clean install -DskipTests'
                 }
             }
         }
 
-        stage('Owasp Dependency Check') {
+        stage('Build and Push Docker Image') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    timeout(time: 60, unit: 'MINUTES') {
-                        dependencyCheck additionalArguments: '--scan ./ --format HTML --failOnCVSS 7', odcInstallation: 'dp'
-                        dependencyCheckPublisher pattern: 'dependency-check-report.xml'
-                    }
-                }
-            }
-        }
+                container('kaniko') {
+                    withCredentials([aws(credentialsId: 'aws-ecr-credentials', region: 'us-west-2')]) {
+                        script {
+                            // Get ECR login credentials and configure Kaniko
+                            sh '''
+                                aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
+                                docker login --username AWS --password-stdin ${AWS_ECR_REPO}
+                                
+                                echo '{"credsStore":"ecr-login"}' > /kaniko/.docker/config.json
 
-        stage("Maven Build") {
-            steps {
-                sh "mvn clean install"
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    echo "Building Docker image"
-                    sh "docker build -t $IMAGE_TAG ."
-                }
-            }
-        }
-
-        stage('Login to ECR') {
-            steps {
-                withCredentials([aws(credentialsId: 'aws-cred', region: AWS_REGION)]) {
-                    script {
-                        echo "Logging in to Amazon ECR"
-                        sh """
-                            aws ecr get-login-password --region $AWS_REGION | \
-                            docker login --username AWS --password-stdin $ECR_REGISTRY
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Push Docker Image to ECR') {
-            steps {
-                script {
-                    echo "Pushing Docker image to ECR"
-                    sh "docker push $IMAGE_TAG"
-                }
-            }
-        }
-        
-        stage('Lint Dockerfile') {
-            steps {
-                script {
-                    sh 'cat Dockerfile | docker run --rm -i hadolint/hadolint > lint-report.txt'
-                    archiveArtifacts artifacts: 'lint-report.txt', allowEmptyArchive: true
-                }
-            }
-        }
-
-        stage('Docker Image Vulnerability Scanning') {
-            steps {
-                script {
-                    sh 'trivy image --scanners vuln --severity HIGH,CRITICAL --format table $IMAGE_TAG > trivy-report.txt'
-                    sh 'libreoffice --headless --convert-to pdf trivy-report.txt --outdir .'
-                    archiveArtifacts artifacts: 'trivy-report.pdf', allowEmptyArchive: false
-                }
-            }
-        }
-
-        stage('ZAP Scan') {
-            steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    script {
-                        def zapScript
-                        def reportFile
-                        if (params.SCAN_TYPE == 'Baseline') {
-                            zapScript = 'zap-baseline.py'
-                            reportFile = 'zap_baseline_report.html'
-                        } else if (params.SCAN_TYPE == 'API') {
-                            zapScript = 'zap-api-scan.py'
-                            reportFile = 'zap_api_report.html'
-                        } else if (params.SCAN_TYPE == 'FULL') {
-                            zapScript = 'zap-full-scan.py'
-                            reportFile = 'zap_full_report.html'
+                                /kaniko/executor --dockerfile="/Dockerfile" --context `pwd` --destination ${AWS_ECR_REPO}:${IMAGE_TAG}
+                            '''
                         }
-
-                        def status = sh(script: '''
-                        docker run -v $PWD:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
-                        ''' + zapScript + ''' -t http://pet.teachingaws.com > ''' + reportFile, returnStatus: true)
-
-                        archiveArtifacts artifacts: '*.html', allowEmptyArchive: true
                     }
                 }
             }
         }
     }
-
-    post {
-        always {
-            emailext (
-                subject: "Pipeline Status: Build #${BUILD_NUMBER}",
-                body: '''<html>
-                            <body>
-                                <p>Build Status: ${BUILD_STATUS}</p>
-                                <p>Build Number: ${BUILD_NUMBER}</p>
-                                <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
-                            </body>
-                        </html>''',
-                to: 'ajaybj969@gmail.com',
-                from: 'ajaybj969@gmail.com',
-                replyTo: 'ajaybj969@gmail.com',
-                mimeType: 'text/html',
-                attachmentsPattern: '**/trivy-report.pdf,**/hadolint_report.txt,**/zap_baseline_report.html'
-            )
-        }
-
-        success {
-            slackNotify("SUCCESS")
-        }
-
-        failure {
-            slackNotify("FAILURE")
-        }
-
-        unstable {
-            slackNotify("UNSTABLE")
-        }
-    }
-}
-
-// Function to send Slack notifications
-def slackNotify(String status) {
-    def triggerAuthor = currentBuild.changeSets.collectMany { changeSet ->
-        changeSet.items.collect { it.author.fullName }
-    }.join(', ') ?: "Unknown"
-
-    slackSend (
-        color: (status == "SUCCESS") ? "good" : ((status == "FAILURE") ? "danger" : "warning"),
-        message: "*Build Status:* ${status}\n" +
-                 "*Build Number:* ${env.BUILD_NUMBER}\n" +
-                 "*Build Link:* <${env.BUILD_URL}|Click Here>\n" +
-                 "*Triggered By:* ${triggerAuthor}"
-    )
 }
