@@ -20,8 +20,8 @@ pipeline {
                     - /busybox/cat
                     tty: true
                     env:
-                    - name: AWS_DEFAULT_REGION
-                      value: "us-west-2"  # Change to your region
+                    - name: AWS_REGION
+                      value: "us-east-1"  # Change to your region
                   volumes:
                   - name: maven-cache
                     hostPath:
@@ -33,6 +33,7 @@ pipeline {
     environment {
         AWS_ECR_REPO = "123456789012.dkr.ecr.us-west-2.amazonaws.com/jenkins-java-app"
         IMAGE_TAG = "1.0.0"
+        AWS_REGION = 'us-east-1'
     }
 
     stages {
@@ -53,11 +54,11 @@ pipeline {
         stage('Build and Push Docker Image') {
             steps {
                 container('kaniko') {
-                    withCredentials([aws(credentialsId: 'aws-ecr-credentials', region: 'us-west-2')]) {
+                    withCredentials([aws(credentialsId: 'aws-cred', region: '$AWS_REGION')]) {
                         script {
                             // Get ECR login credentials and configure Kaniko
                             sh '''
-                                aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
+                                aws ecr get-login-password --region $AWS_REGION | \
                                 docker login --username AWS --password-stdin ${AWS_ECR_REPO}
                                 
                                 echo '{"credsStore":"ecr-login"}' > /kaniko/.docker/config.json
