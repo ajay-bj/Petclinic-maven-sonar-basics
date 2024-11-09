@@ -31,8 +31,8 @@ pipeline {
     }
 
     environment {
-        AWS_ECR_REPO = "123456789012.dkr.ecr.us-west-2.amazonaws.com/jenkins-java-app"
-        IMAGE_TAG = "1.0.0"
+        AWS_ECR_REPO = "905418153772.dkr.ecr.us-east-1.amazonaws.com"
+        IMAGE_TAG = "${BUILD_NUMBER}"
         AWS_REGION = 'us-east-1'
     }
 
