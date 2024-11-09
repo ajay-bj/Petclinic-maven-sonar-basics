@@ -1,0 +1,128 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: maven
+                    image: maven:3.8.4-openjdk-17
+                    command:
+                    - cat
+                    tty: true
+                    volumeMounts:
+                    - name: shared-volume
+                      mountPath: /shared
+                  - name: kaniko
+                    image: gcr.io/kaniko-project/executor:debug
+                    command:
+                    - /busybox/cat
+                    tty: true
+                    volumeMounts:
+                    - name: shared-volume
+                      mountPath: /shared
+                  - name: hadolint
+                    image: hadolint/hadolint
+                    command:
+                    - cat
+                    tty: true
+                    volumeMounts:
+                    - name: shared-volume
+                      mountPath: /shared
+                  - name: trivy
+                    image: aquasec/trivy
+                    command:
+                    - cat
+                    tty: true
+                    volumeMounts:
+                    - name: shared-volume
+                      mountPath: /shared
+                  volumes:
+                  - name: shared-volume
+                    hostPath:
+                      path: /home/jenkins/shared
+            '''
+        }
+    }
+
+    environment {
+        AWS_ECR_REPO = "905418153772.dkr.ecr.us-east-1.amazonaws.com"
+        IMAGE_TAG = "${BUILD_NUMBER}"  // Use the Jenkins build number as the image tag
+        AWS_DEFAULT_REGION = "us-east-1"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Inspect Shared Volume') {
+            steps {
+                container('maven') {
+                    sh 'echo "Listing contents of shared volume:"'
+                    sh 'ls -l /shared'
+                }
+            }
+        }
+
+        stage('Lint Dockerfile') {
+            steps {
+                container('hadolint') {
+                    sh 'hadolint /shared/Dockerfile'
+                }
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                container('maven') {
+                    sh 'mvn -B -Dmaven.repo.local=/root/.m2/repository clean install -DskipTests'
+                    sh 'cp target/*.war /shared/'  // Copy .war file to shared volume
+                }
+            }
+        }
+
+        stage('Inspect Shared Volume After Maven Build') {
+            steps {
+                container('maven') {
+                    sh 'echo "Listing contents of shared volume after Maven build:"'
+                    sh 'ls -l /shared'
+                }
+            }
+        }
+
+        stage('Build and Push Docker Image') {
+            steps {
+                container('kaniko') {
+                    withCredentials([aws(credentialsId: 'aws-cred', region: "$AWS_DEFAULT_REGION")]) {
+                        script {
+                            sh '''
+                                aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
+                                docker login --username AWS --password-stdin ${AWS_ECR_REPO}
+
+                                echo '{"credsStore":"ecr-login"}' > /shared/config.json
+
+                                /kaniko/executor --dockerfile="/shared/Dockerfile" --context /shared --destination ${AWS_ECR_REPO}:${IMAGE_TAG}
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Scan Docker Image') {
+            steps {
+                container('trivy') {
+                    script {
+                        sh '''
+                            trivy image --severity HIGH,CRITICAL ${AWS_ECR_REPO}:${IMAGE_TAG}
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}
