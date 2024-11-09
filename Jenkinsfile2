@@ -43,7 +43,7 @@ pipeline {
                 checkout scm
             }
         }
-        stage('Inspect Shared Volume') {
+        stage('Volume') {
             steps {
                 container('maven') {
                     sh 'echo "Listing contents of shared volume:"'
